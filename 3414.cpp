@@ -32,132 +32,114 @@
  *	1 <= l_i <= r_i <= 10^9
  *	1 <= weight_i <= 10^9
  */
-
-#include <algorithm>
 #include <iostream>
+#include <algorithm>
 #include <vector>
+
 class Solution {
 public:
-	bool isBetween(int a,int l, int h){
-		if (l > h){
-			h ^= l;
-			l ^= h;
-			h ^= l;
+	std::vector<size_t> quickSort(
+			std::vector<int>& numbers,
+			std::vector<size_t> rankings = {},
+			bool start = true){
+		if (start){
+			size_t indexer = 0;
+			rankings.resize(numbers.size());
+			while(indexer<numbers.size()) {
+				rankings[indexer] = indexer;
+				indexer++;
+			}
 		}
-		return !( (a < l) || (a > h) );
+		else if(rankings.size() <= 1)
+			return rankings;
+		size_t pivot = rankings.back();
+		std::vector<size_t> left,right,center = {pivot};
+		for (size_t i = 0; i < rankings.size() - 1; i++){
+			size_t j = rankings[i];
+			if (numbers[j] > numbers[pivot]) right.push_back(j);
+			else if (numbers[j] < numbers[pivot]) left.push_back(j);
+			else center.push_back(j);
+		}
+		std::vector<size_t> leftSorted  = quickSort(numbers,left,false);
+		std::vector<size_t> rightSorted = quickSort(numbers,right,false);
+		center.insert(center.end(),rightSorted.begin(),rightSorted.end());
+		leftSorted.insert(leftSorted.end(),center.begin(),center.end());
+		return leftSorted;
 	}
-	bool overlap (int l1, int h1, int l2, int h2){
-		return  isBetween( l1 , l2, h2) || isBetween(h1 , l2, h2) || 
-				isBetween( l2 , l1, h1) || isBetween(h2 , l1, h1);
+	size_t binarySearch(int search, std::vector<int>& numbers, std::vector<size_t>& rankings){
+		size_t lowest = 0, highest = rankings.size() - 1;
+		if (search < numbers[rankings[0]] || search > numbers[rankings.back()]){
+			 return rankings.size();
+			
+		}
+		while (true){
+			size_t guess = (highest + lowest)/2;
+			size_t i = rankings[guess];
+			if (numbers[i] < search) lowest  = guess + 1;
+			else if (numbers[i] > search) highest = guess - 1;
+			else return i;
+
+			if (highest == lowest) return rankings.size();
+			
+		}
 	}
+	void bestPath(
+			std::vector< std::pair<std::vector<size_t>, int> >& directions, int depth,
+			std::vector<std::vector<size_t>>& paths,
+			std::vector<size_t> steps = {}, ulong cost = 0,
+			size_t position = 0
+			){
+		
+		cost += directions[position].second;
+		for (auto option: directions[position].first){
+			auto it = std::find(steps.begin(),steps.end(),option);
+			if (it != steps.end())
+				continue;
+			std::vector<size_t> shadowSteps = steps;
+			shadowSteps.push_back(option);
 
-	 void allPaths(
-			std::vector<std::vector<int>>& best, ulong& score,
-			std::vector<std::vector<int>>& intervals,
-			std::vector<int> allowed, std::vector<int> path = {},
-			ulong currScore = 0)
-	{
-		for (size_t ir = 0; ir < allowed.size(); ir++){
-			int i = allowed[ir];
-			std::vector<int> myPath = path;
-			if (myPath.size() == 0){
-				myPath = {i};
-			}
-			else {
-				bool overlapping = false;
-				for (int j: myPath){
-					int l1 = intervals[j][0];
-					int h1 = intervals[j][1];
-
-					int l2 = intervals[i][0];
-					int h2 = intervals[i][1];
-					if (overlap(l1,h1,l2,h2)){
-						overlapping = true;
-						break;
-					}
-				}
-				if (overlapping)
-					continue;
-				myPath.push_back(i);
-			}
-
-			ulong updatedScore = currScore + intervals[i][2];
-			if (updatedScore > score){
-				best = {myPath}; 
-				score = updatedScore;
-			} 
-			else if(score == updatedScore){
-				best.push_back(myPath);
-			}
-
-			if (myPath.size() >= 4){
+			if (steps.size() >= depth){
+				paths.push_back(steps);
 				continue;
 			}
-
-			std::vector<int> remaining = allowed;
-			remaining.erase(remaining.begin() + ir);
-			allPaths(best, score, intervals, remaining, myPath, updatedScore);
+			bestPath(directions,depth, paths, steps, cost+directions[position].second,option);
 		}
 	}
+
 	std::vector<int> maximumWeight(std::vector<std::vector<int>>& intervals) {
-		std::vector<int> permitted(intervals.size());
-		size_t indexer = 0;
-		while(indexer < intervals.size()){
-			permitted[indexer] = indexer; 
-			indexer++;
-		}
-		std::vector<std::vector<int>> paths;
-		ulong score = 0;
-		allPaths(paths, score, intervals,permitted);
-		
-		// Find lexicographically smallest.
-		for (auto& path: paths){
-			std::sort(path.begin(),path.end());
-		}
+		// Sort list by upper bounds.
+		std::vector<int> upperBounds;
+		std::vector<int> path;
+		for (auto interval:intervals) upperBounds.push_back(interval[1]);
+		std::vector<size_t> rankings = quickSort(upperBounds);
+		std::vector< std::pair<std::vector<size_t>, int> > nextStep(intervals.size(), { {}, 0 } );
 
-		size_t i = 0;
-		std::vector<size_t> marked(paths.size()); 
-		indexer = 0;
-		while(indexer < paths.size()){
-			marked[indexer] = indexer; 
-			indexer++;
-		}
-		while(marked.size() > 1){
-			if (i >= paths[marked[0]].size())
-				return paths[marked[0]];
-
-			int smallest = paths[marked[0]][i];
-			std::vector<size_t> remaining = {marked[0]};
-			for (size_t j = 1; j < marked.size();j++){
-				size_t k = marked[j];
-				if (i < paths[k].size()){
-					if (paths[k][i] < smallest){
-						remaining = {k};
-						smallest = paths[k][i];
+		for(size_t j = 0; j < rankings.size();j++){
+			size_t match = rankings[j];
+			std::vector<int> start = intervals[match];
+			for(size_t i = j + 1; i < rankings.size();j++){
+				size_t current = rankings[i];
+				std::vector<int> next = intervals[current];
+				if ( next[0] > start[1] ){
+					if(next[2] > nextStep[match].second){
+						nextStep[match] = { {current}, next[2]};
 					}
-					else if (smallest == paths[k][i]) remaining.push_back(k);
-
-					continue;
+					else if(next[2]  == nextStep[match].second){
+						nextStep[match].first.push_back(current);
+					}
 				}
-				return paths[k];
 			}
-			marked = remaining;
-			i++;
 		}
-		return paths[marked[0]];
+		return {};
 	}
 };
 
-
 int main(){
 	Solution solution;
-	std::vector<std::vector<int>> intervals = {
-		{17,17,10},{23,23,23},{3,8,31},{17,21,48},{18,24,44}
-	};
-
-	std::vector<int> path = solution.maximumWeight(intervals);
-	for (auto item: path){
-		std::cout << item << '\t';
-	}
-	std::cout << std::endl;
+	std::vector<int> numbers = {5,3,2,1};
+	std::vector<size_t> rankings = solution.quickSort(numbers);
+	size_t spot = solution.binarySearch(4,numbers,rankings);
+	if (spot != rankings.size())
+		std::cout << spot << std::endl;
 }
+
